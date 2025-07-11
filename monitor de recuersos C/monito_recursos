@@ -1,0 +1,109 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+#define BUFFER_SIZE 256
+
+// Función para obtener el uso de la CPU
+float obtener_info_cpu() {
+    FILE *file;
+    char buffer[BUFFER_SIZE];
+    unsigned long user, nice, system, idle, iowait, irq, softirq, total;
+    float uso_cpu;
+
+    // Abrir archivo /proc/stat
+    file = fopen("/proc/stat", "r");
+    if (!file) {
+        perror("Error abriendo /proc/stat");
+        return -1;
+    }
+
+    // Leer la primera línea de /proc/stat
+    fgets(buffer, sizeof(buffer), file);
+    sscanf(buffer, "cpu %lu %lu %lu %lu %lu %lu %lu %lu", &user, &nice, &system, &idle, &iowait, &irq, &softirq);
+
+    total = user + nice + system + idle + iowait + irq + softirq;
+    uso_cpu = (float)(user + nice + system) / total * 100;
+
+    fclose(file);
+    return uso_cpu;
+}
+
+// Función para obtener la información de memoria
+void obtener_info_memoria() {
+    FILE *file;
+    char buffer[BUFFER_SIZE];
+    unsigned long memoria_total, memoria_libre;
+
+    // Abrir archivo /proc/meminfo
+    file = fopen("/proc/meminfo", "r");
+    if (!file) {
+        perror("Error abriendo /proc/meminfo");
+        return;
+    }
+
+    // Leer las primeras dos líneas de /proc/meminfo
+    fgets(buffer, sizeof(buffer), file);
+    sscanf(buffer, "MemTotal: %lu kB", &memoria_total);
+    fgets(buffer, sizeof(buffer), file);
+    sscanf(buffer, "MemFree: %lu kB", &memoria_libre);
+
+    printf("Memoria Total: %.2f MB\n", memoria_total / 1024.0);
+    printf("Memoria Libre: %.2f MB\n", memoria_libre / 1024.0);
+
+    fclose(file);
+}
+
+// Función para obtener la información de los primeros 5 procesos
+void obtener_info_procesos() {
+    FILE *file;
+    char path[BUFFER_SIZE];
+    char buffer[BUFFER_SIZE];
+    char name[BUFFER_SIZE];
+    char state[BUFFER_SIZE];
+    int pid;
+
+    // Recorrer los directorios de /proc para obtener información de los procesos
+    for (pid = 1; pid <= 5; pid++) {
+        snprintf(path, sizeof(path), "/proc/%d/status", pid);
+
+        file = fopen(path, "r");
+        if (!file) continue;
+
+        // Leer las primeras líneas de /proc/[pid]/status
+        while (fgets(buffer, sizeof(buffer), file)) {
+            if (strncmp(buffer, "Name:", 5) == 0) {
+                sscanf(buffer, "Name: %s", name);
+            }
+            if (strncmp(buffer, "State:", 6) == 0) {
+                sscanf(buffer, "State: %s", state);
+            }
+        }
+
+        printf("PID: %d | Name: %s | Estado: %s\n", pid, name, state);
+        fclose(file);
+    }
+}
+
+int main() {
+    while (1) {
+        printf("\n--- Monitor de Recursos ---\n");
+
+        // Mostrar uso de la CPU
+        float uso_cpu = obtener_info_cpu();
+        if (uso_cpu >= 0)
+            printf("Uso de CPU: %.2f%%\n", uso_cpu);
+
+        // Mostrar información de memoria
+        obtener_info_memoria();
+
+        // Mostrar los primeros 5 procesos
+        obtener_info_procesos();
+
+        // Pausar por 5 segundos antes de actualizar la información
+        sleep(5);
+    }
+
+    return 0;
+}
